@@ -102,7 +102,6 @@ sharedsubFile = sharedsubFile[,2:57]
 sharedsubFile = sharedsubFile[4:494,]
 class(sharedsubFile) <- "numeric"
 head(sharedsubFile)
-dim(sharedsubFile)
 sharedsubFile <-as.matrix(sharedsubFile)
 ## Import taxonomy file 
 ## Copy and paste into notepad and save. Then carry on: 
@@ -123,7 +122,6 @@ TAX = tax_table(taxFile)
 META = sample_data(metaFile)
 physeq = phyloseq(OTU, TAX, META)
 physeqSub = phyloseq(OTUsub, TAX, META)
-physeqSub
 ## Get rid of any OTUs not present in any samples and get relative abundance
 microSub <- prune_taxa(taxa_sums(physeqSub) > 0, physeqSub)
 microSubRel = transform_sample_counts(microSub, function(x) x / sum(x) )
@@ -134,6 +132,7 @@ random_tree = rtree(ntaxa(microSub), rooted=TRUE, tip.label=taxa_names(microSub)
 plot(random_tree)
 microSubt = merge_phyloseq(microSub, random_tree)
 ```
+
 ## Plotting core graphs
 ```{r, warning=FALSE}
 # Plotting rarefaction
@@ -210,6 +209,7 @@ ordUF = ordinate(microSubt, method="PCoA", distance=wunifrac_dist)
 plot_ordination(microSubt, ordUF, color = "condition") + 
   ggtitle("PCoA: weigthed Unifrac")+geom_point(size=5) + scale_color_manual(values=c("brown3", "steelblue","grey50"))
 ```  
+
 ## Normalization and plotting figures by group  
 ```{r}
 # Normalization
@@ -235,8 +235,9 @@ plotLDA(lda2,group=c("10%Fat","60%Fat"),lda=5,pvalue=0.05)+theme(axis.text.y = e
 plotLDA(lda2,group=c("10%Fat","Oleate"),lda=5,pvalue=0.05)+theme(axis.text.y = element_text(size = 16))+theme(text = element_text(size=20))
 plotLDA(lda2,group=c("Oleate","60%Fat"),lda=5,pvalue=0.05) +theme(axis.text.y = element_text(size = 16))+theme(text = element_text(size=20))
 ```
+
 ## Modified difftest function from microbial package to test for significance
-```{r}
+```{r, message=FALSE}
 # create difftest2 function
 difftest2<-function(physeq,group,pvalue=0.05,padj=NULL,log2FC=0,gm_mean=TRUE,fitType="local",quiet=FALSE){
   if(!taxa_are_rows(physeq)){
@@ -276,6 +277,7 @@ difftest2<-function(physeq,group,pvalue=0.05,padj=NULL,log2FC=0,gm_mean=TRUE,fit
 mic_res <- difftest2(microSubt,group="condition", gm_mean=FALSE)
 plotdiff(mic_res,level="Genus",padj=0.001,log2FC = 3,fontsize.y = 14)
 ```  
+
 ## Test for significant OTUs using DESeq2  
 ```{r}
 sample_data(microSubt)$condition <- as.factor(sample_data(microSubt)$condition)
@@ -310,15 +312,16 @@ ggplot(res_sig3, aes(x=Genus, y=log2FoldChange, color=Phylum)) +
   geom_jitter(size=5, width = 0.2) + theme(text = element_text(size=16)) +
   theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
 ```
+
 ## Plot heatmap  
 ```{r, results='hide'}
 plot_taxa_heatmap(microSubt,
                   subset.top = 20,
                   VariableA = "condition",
                   heatcolors = colorRampPalette(rev(brewer.pal(n = 7, name = "RdYlBu")))(100),
-                  transformation = "log10"
-)
+                  transformation = "log10")
 ```  
+
 ## Venn Diagram
 ```{r}
 pseq<-microSubt
@@ -346,9 +349,11 @@ print(list_core)
 # Specify colors and plot venn
 # supplying colors in the order they appear in list_core
 mycols <- c("brown3", "grey50", "steelblue")
-venn.diagram(list_core,fill = mycols, filename = '#14_venn_diagramm.png',
+venn.diagram(list_core,fill = mycols, filename = 'venn_diagramm.png',
              output=TRUE)
 ```  
+![Venn_Diagram](venn_diagramm.png)
+
 ## Plotting top 4 genus  
 ```{r, warning=FALSE}
 pa <- aggregate_taxa(microSubt, "Genus")
@@ -372,6 +377,7 @@ p <- p + stat_compare_means(
   method = "wilcox.test")
 print(p + ylab("Relative abundance") + scale_y_continuous(labels = scales::percent))
 ```
+
 ## Get taxa summary by group(s)
 ```{r}
 p0 <- microSubt
@@ -403,6 +409,7 @@ mean.plot <- grp_abund %>% # input data
   coord_flip() # rotate plot 
 mean.plot
 ```  
+
 ## Plotting density of reads per sample  
 ```{r}
 p0 <- microSubt
@@ -444,6 +451,7 @@ p_hfd <- taxa_distribution(HFD_ps) +
 p_hc / p_oleate / p_hfd + plot_layout(guides = "collect") + 
   plot_annotation(tag_levels = "A")
 ```
+
 ## Filtering the dataset  
 ```{r}
 # Select specific taxa
@@ -458,11 +466,13 @@ microFecal
 # if you needed to remove candidate outliers, can use the below to remove sample e.g. f4406
 microSubt.1 <- prune_samples(sample_names(microSubt) != "f4406", microSubt)
 ```  
+
 ## Convert Phyloseq object to a dataframe  
 ```{r}
 x<-psmelt(microSubt)
 head(x)
 ```  
+
 # Session Info  
 ```{r}
 sessionInfo()

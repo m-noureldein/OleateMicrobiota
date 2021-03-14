@@ -1,8 +1,7 @@
 ---
-title: "Butyrate"
+title: "Identification of butyrate-producing bacteria"
 output: html_document
 ---
-# Identification of butyrate-producing bacteria  
 We start with the `microSubt` phyloseq object created in the `Analysis-OleateMicrobiota` file. We create a `csv` file containing the major butyrate-producing microbiota reported in literature called `butyrate.csv`. This file was created from the silva v138.1 taxonomy file. Then, we filter the `microSubt` with genera from `butyrate.csv`.  
 ```{r, message=FALSE}
 # load libraries
@@ -26,6 +25,13 @@ library("RColorBrewer")
 library("ggpubr")
 library("patchwork")
 ```
+# Select Butyrate-forming bacteria from the microSubt phyloseq object  
+```{r}
+but <- read.csv("butyrate.csv", header = TRUE, sep = ",")
+dim(but)
+head(but$Genus)
+```  
+
 # Make a phyloseq object from mothur files  
 ```{r}  
 ## import data 
@@ -58,6 +64,14 @@ rownames(taxFile) = taxFile[,1]
 taxFile = taxFile[,3:8]
 taxFile = as.matrix(taxFile)
 head(taxFile)
+taxBut <- as.data.frame(taxFile)
+taxBut <-taxBut %>% 
+  mutate(Family = ifelse(Family %in% but$Family, "Butyrate-producing bacteria", Family))
+taxBut <- within(taxBut, Kingdom[Family == "Butyrate-producing bacteria"] <- '')
+taxBut <- within(taxBut, Phylum[Family == "Butyrate-producing bacteria"] <- '')
+taxBut <- within(taxBut, Order[Family == "Butyrate-producing bacteria"] <- '')
+taxBut <- within(taxBut, Class[Family == "Butyrate-producing bacteria"] <- '')
+taxBut <-as.matrix(taxBut)
 ## import metadata file
 metaFile = read.table('oleate.metadata', header=T, sep='\t')
 rownames(metaFile) = metaFile[,1]
@@ -67,33 +81,35 @@ head(metaFile)
 OTU = otu_table(sharedFile, taxa_are_rows = TRUE)
 OTUsub = otu_table(sharedsubFile, taxa_are_rows = TRUE)
 TAX = tax_table(taxFile)
+TaxBut=tax_table(taxBut)
 META = sample_data(metaFile)
 physeq = phyloseq(OTU, TAX, META)
 physeqSub = phyloseq(OTUsub, TAX, META)
+phytaxBut = phyloseq(OTUsub, TaxBut, META)
 physeqSub
 ## Get rid of any OTUs not present in any samples and get relative abundance
 microSub <- prune_taxa(taxa_sums(physeqSub) > 0, physeqSub)
 microSubRel = transform_sample_counts(microSub, function(x) x / sum(x) )
 microSubRelFilt = filter_taxa(microSubRel, function(x) mean(x) > 1e-5, TRUE)
+microtaxBut <-prune_taxa(taxa_sums(phytaxBut) > 0, physeqSub)
 # for subsampled shared file
 # create a tree and a new phyloseq object
 random_tree = rtree(ntaxa(microSub), rooted=TRUE, tip.label=taxa_names(microSub))
 plot(random_tree)
 microSubt = merge_phyloseq(microSub, random_tree)
-```  
-# Select Butyrate-forming bacteria from the microSubt phyloseq object  
-```{r}
-but <- read.csv("butyrate.csv", header = TRUE, sep = ",")
-head(but$Genus)
+random_tree2 = rtree(ntaxa(phytaxBut), rooted=TRUE, tip.label=taxa_names(phytaxBut))
+phytaxbutT  = merge_phyloseq(microtaxBut, random_tree2)
+# subset butyrate producing bacteria
 microBut <- subset_taxa(microSubt, Genus %in% but$Genus)
 microBut
 ```  
+
 # Plotting core graphs
 ```{r}
 # Plotting rarefaction
 rarecurve(t(otu_table(microBut)), step=50, cex=0.5)
 # Plotting taxonomy
-plot_bar(microBut, fill="Phylum") + facet_wrap(~condition, scales = "free_x", nrow = 1)+theme(text = element_text(size=16))+geom_bar(stat="identity")+
+plot_bar(microBut, fill="Family") + facet_wrap(~condition, scales = "free_x", nrow = 1)+theme(text = element_text(size=16))+geom_bar(stat="identity")+
   scale_fill_brewer(type = "seq", palette = "Spectral")+
   theme(
     legend.background = element_rect(
@@ -102,7 +118,7 @@ plot_bar(microBut, fill="Phylum") + facet_wrap(~condition, scales = "free_x", nr
       size = 1
     )
   )
-plot_bar(microBut, fill="Phylum") + facet_wrap(~site, scales = "free_x", nrow = 1)+theme(text = element_text(size=16))+geom_bar(stat="identity")+
+plot_bar(microBut, fill="Family") + facet_wrap(~site, scales = "free_x", nrow = 1)+theme(text = element_text(size=16))+geom_bar(stat="identity")+
   scale_fill_brewer(type = "seq", palette = "Spectral")+
   theme(
     legend.background = element_rect(
@@ -111,7 +127,7 @@ plot_bar(microBut, fill="Phylum") + facet_wrap(~site, scales = "free_x", nrow = 
       size = 1
     )
   ) 
-plot_bar(microBut, fill="Phylum")+facet_grid(condition~site, scales = "free")+theme(text = element_text(size=16))+geom_bar(stat="identity")+
+plot_bar(microBut, fill="Family")+facet_grid(condition~site, scales = "free")+theme(text = element_text(size=16))+geom_bar(stat="identity")+
   scale_fill_brewer(type = "seq", palette = "Spectral")+
   theme(
     legend.background = element_rect(
@@ -122,8 +138,7 @@ plot_bar(microBut, fill="Phylum")+facet_grid(condition~site, scales = "free")+th
   )
 # Plotting PCoA
 my.PCoA2 <- ordinate(microBut, "PCoA", "bray")
-plot_ordination(microBut, my.PCoA2, type = "group", color = "condition", shape = "site")+theme(text = element_text(size=20))+ geom_point(size=5) + scale_color_manual(values=c("brown3", "steelblue","grey50"))+ 
-  geom_text(label= "group", size=2)
+plot_ordination(microBut, my.PCoA2, type = "group", color = "condition", shape = "site")+theme(text = element_text(size=20))+ geom_point(size=5) + scale_color_manual(values=c("brown3", "steelblue","grey50"))
 plot_ordination(microBut, my.PCoA2, type = "group", color = "condition")+ facet_wrap(~site, scales = "free_x", nrow = 1) + geom_point(size=5)+theme(text = element_text(size=20)) + scale_color_manual(values=c("brown3", "steelblue","grey50"))
 plot_ordination(microBut, my.PCoA2, type = "group", color = "condition", shape = "site")+theme(text = element_text(size=20))+ geom_point(size=5)+ 
   geom_line() + scale_color_manual(values=c("brown3", "steelblue","grey50"))
@@ -139,12 +154,74 @@ ordUF = ordinate(microBut, method="PCoA", distance=wunifrac_dist)
 plot_ordination(microBut, ordUF, color = "condition") + 
   ggtitle("PCoA: weigthed Unifrac")+geom_point(size=5) + scale_color_manual(values=c("brown3", "steelblue","grey50"))
 ```  
-# Normalization
+
+## Relative abundance of butyrate-producing families
+```{r}
+phyBut <- normalize(phytaxBut, method = "relative")
+# Plot taxonomy by group
+plotbar(phyBut,level="Family", group="condition") + theme(axis.text.x = element_text(size = 16))
+plotbar(phyBut,level="Family", group="site") + theme(axis.text.x = element_text(size = 16))
+
+p1 <- phytaxBut
+p1.gen <- aggregate_taxa(phytaxBut,"Genus")
+x.d1 <- dominant_taxa(p1,level = "Genus", group="condition")
+head(x.d1$dominant_overview)
+tx.sum2 <- taxa_summary(p1, "Family")
+?taxa_summary()
+p1.rel <- microbiome::transform(p1, "compositional")
+
+grp_abund1 <- get_group_abundances(p1.rel, 
+                                  level = "Family", 
+                                  group="condition",
+                                  transform = "compositional")
+
+mycols <- c("brown3", "steelblue","grey50")
+# clean names 
+grp_abund1$OTUID <- gsub("p__", "",grp_abund1$OTUID)
+grp_abund1$OTUID <- ifelse(grp_abund1$OTUID == "", 
+                          "Unclassified", grp_abund1$OTUID)
+re <-reorder(grp_abund1$OTUID, grp_abund1$mean_abundance)
+mean.plot1 <- grp_abund1 %>% # input data
+  ggplot(aes(x=re, # reroder based on mean abundance
+             y= mean_abundance,
+             fill=condition)) + # x and y axis 
+  geom_bar(     stat = "identity", 
+                position=position_dodge()) + 
+  scale_fill_manual("condition", values=mycols) + # manually specify colors
+  theme_bw() + # add a widely used ggplot2 theme
+  ylab("Mean Relative Abundance") + # label y axis
+  xlab("Family") + # label x axis
+  coord_flip() # rotate plot 
+mean.plot1
+
+pa <- aggregate_taxa(p1, "Family")
+top_four <- top_taxa(pa, 4)
+top_four
+mycols <- c("brown3", "steelblue", "grey50")
+p <- plot_listed_taxa(pa, top_four, 
+                      group= "condition",
+                      group.order = c("10%Fat","Oleate","60%Fat"),
+                      group.colors = mycols,
+                      add.violin = TRUE,
+                      violin.opacity = 0.3,
+                      dot.opacity = 0.25,
+                      box.opacity = 0.25,
+                      panel.arrange= "wrap")
+comps <- make_pairs(sample_data(pa)$condition)
+p <- p + stat_compare_means(
+  comparisons = comps,
+  label = "p.format",
+  tip.length = 0.05,
+  method = "wilcox.test")
+print(p + ylab("Relative abundance") + scale_y_continuous(labels = scales::percent))
+```  
+
+## Normalization
 ```{r}
 phy <- normalize(microBut, method = "relative")
 # Plot taxonomy by group
-plotbar(phy,level="Phylum", group="condition") + theme(axis.text.x = element_text(size = 16))
-plotbar(phy,level="Phylum", group="site") + theme(axis.text.x = element_text(size = 16))
+plotbar(phy,level="Family", group="condition") + theme(axis.text.x = element_text(size = 16))
+plotbar(phy,level="Family", group="site") + theme(axis.text.x = element_text(size = 16))
 # Plot alpha diversity
 plotalpha(microBut, group = "condition", color = c("brown3","grey50", "steelblue"))
 plotalpha(microBut, group = "site")
@@ -163,8 +240,9 @@ plotLDA(lda4,group=c("10%Fat","60%Fat"),lda=5,pvalue=0.05)+theme(axis.text.y = e
 plotLDA(lda4,group=c("10%Fat","Oleate"),lda=5,pvalue=0.05)+theme(axis.text.y = element_text(size = 16))+theme(text = element_text(size=20))
 plotLDA(lda4,group=c("Oleate","60%Fat"),lda=5,pvalue=0.05) +theme(axis.text.y = element_text(size = 16))+theme(text = element_text(size=20))
 ```
+
 ## Modified difftest function from microbial package to test for significance
-```{r}
+```{r, results='hide'}
 # create difftest2 function
 difftest2<-function(physeq,group,pvalue=0.05,padj=NULL,log2FC=0,gm_mean=TRUE,fitType="local",quiet=FALSE){
   if(!taxa_are_rows(physeq)){
@@ -204,6 +282,7 @@ difftest2<-function(physeq,group,pvalue=0.05,padj=NULL,log2FC=0,gm_mean=TRUE,fit
 mic_res <- difftest2(microBut,group="condition", gm_mean=FALSE)
 plotdiff(mic_res,level="Genus",padj=0.001,log2FC = 3,fontsize.y = 14)
 ```  
+
 ## Test for significant OTUs using DESeq2  
 ```{r}
 sample_data(microBut)$condition <- as.factor(sample_data(microBut)$condition)
@@ -238,6 +317,7 @@ ggplot(res_sig3, aes(x=Genus, y=log2FoldChange, color=Phylum)) +
   geom_jitter(size=5, width = 0.2) + theme(text = element_text(size=16)) +
   theme(axis.text.x = element_text(angle = -90, hjust = 0, vjust=0.5))
 ```
+
 ## Plot heatmap  
 ```{r, results='hide'}
 plot_taxa_heatmap(microBut,
@@ -247,6 +327,7 @@ plot_taxa_heatmap(microBut,
                   transformation = "log10"
 )
 ```  
+
 ## Venn Diagram
 ```{r}
 pseq<-microBut
@@ -277,6 +358,8 @@ mycols <- c("brown3", "grey50", "steelblue")
 venn.diagram(list_core,fill = mycols, filename = 'But_venn_diagramm.png',
              output=TRUE)
 ```  
+![Butyrate_Venn](But_venn_diagramm.png)
+
 ## Plotting top 4 genus  
 ```{r, warning=FALSE}
 pa <- aggregate_taxa(microBut, "Genus")
@@ -300,9 +383,10 @@ p <- p + stat_compare_means(
   method = "wilcox.test")
 print(p + ylab("Relative abundance") + scale_y_continuous(labels = scales::percent))
 ```
+
 ## Get taxa summary by group(s)
 ```{r}
-p0 <- microSubt
+p0 <- microBut
 p0.gen <- aggregate_taxa(microBut,"Genus")
 x.d <- dominant_taxa(p0,level = "Genus", group="condition")
 head(x.d$dominant_overview)
@@ -310,7 +394,7 @@ tx.sum1 <- taxa_summary(p0, "Phylum")
 p0.rel <- microbiome::transform(p0, "compositional")
 
 grp_abund <- get_group_abundances(p0.rel, 
-                                  level = "Phylum", 
+                                  level = "Family", 
                                   group="condition",
                                   transform = "compositional")
 mycols <- c("brown3", "steelblue","grey50")
@@ -327,10 +411,11 @@ mean.plot <- grp_abund %>% # input data
   scale_fill_manual("condition", values=mycols) + # manually specify colors
   theme_bw() + # add a widely used ggplot2 theme
   ylab("Mean Relative Abundance") + # label y axis
-  xlab("Phylum") + # label x axis
+  xlab("Family") + # label x axis
   coord_flip() # rotate plot 
 mean.plot
 ```  
+
 ## Plotting density of reads per sample  
 ```{r}
 p0 <- microBut
@@ -371,6 +456,7 @@ p_hfd <- taxa_distribution(HFD_ps) +
 p_hc / p_oleate / p_hfd + plot_layout(guides = "collect") + 
   plot_annotation(tag_levels = "A")
 ```
+
 # Session Info  
 ```{r}
 sessionInfo()
